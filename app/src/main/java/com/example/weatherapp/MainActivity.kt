@@ -1,5 +1,7 @@
 package com.example.weatherapp
 
+
+
 import android.annotation.SuppressLint
 import android.content.Context
 import android.content.pm.PackageManager
@@ -64,15 +66,24 @@ import androidx.compose.ui.unit.sp
 import androidx.core.location.LocationManagerCompat.getCurrentLocation
 import com.google.android.gms.location.LocationServices
 import android.Manifest
+import android.content.res.Resources.Theme
 import android.location.Geocoder
 import android.location.Location
+import android.text.BoringLayout
+import android.widget.ToggleButton
 import androidx.appcompat.app.AppCompatDelegate
+import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.foundation.layout.wrapContentWidth
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.Card
 import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.Surface
+import androidx.compose.material3.darkColorScheme
+import androidx.compose.material3.lightColorScheme
 import androidx.compose.runtime.livedata.observeAsState
+import androidx.compose.ui.graphics.vector.rememberVectorPainter
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.intl.Locale
 import androidx.compose.ui.text.style.TextAlign
@@ -84,8 +95,11 @@ import androidx.navigation.compose.rememberNavController
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import coil.compose.AsyncImage
+
 import com.example.weatherapp.API.NetworkResponse
 import com.example.weatherapp.API.WeatherModel
+
+
 
 
 class MainActivity : ComponentActivity() {
@@ -95,28 +109,32 @@ class MainActivity : ComponentActivity() {
         val weatherViewModel=ViewModelProvider(this)[WeatherViewModel::class.java]
         enableEdgeToEdge()
         setContent {
-            WeatherAppTheme {
-                WeatherApp(weatherViewModel)
+            var darkMode by remember { mutableStateOf(false) }
 
+            val toggleDarkButton={
+                darkMode=!darkMode
             }
+            WeatherAppTheme(darkMode,darkMode) {
+                WeatherApp(weatherViewModel,darkMode,toggleDarkButton)
+            }
+
         }
     }
 }
 
 
 @Composable
-fun WeatherApp(weatherViewModel: WeatherViewModel) {
+fun WeatherApp(weatherViewModel: WeatherViewModel,darkMode: Boolean,toggleDarkButton:()->Unit) {
     val navController = rememberNavController()
 
 
-    NavHost(navController, startDestination = "search") {
-        composable("search") {
-            searchBar(weatherViewModel,navController)  // Pass navController
-        }
-//        composable("weatherDetail/{city}") { backStackEntry ->
-//            val city = backStackEntry.arguments?.getString("city") ?: "Unknown"
-//            WeatherDetailScreen(city) // Calls function from ShowWeather.kt
+        NavHost(navController, startDestination = "search") {
+            composable("search") {
+                searchBar(weatherViewModel, navController,toggleDarkButton,darkMode)  // Pass navController
+            }
+
 //        }
+
     }
 }
 
@@ -135,15 +153,8 @@ fun getSearchList(context:Context):List<String>{
 
 }
 
-fun funcDarkMode(darkMode: Int) {
-    if (darkMode == 1) {
-        // Enable Dark Mode
-        AppCompatDelegate.setDefaultNightMode(AppCompatDelegate.MODE_NIGHT_YES)
-    } else {
-        // Enable Light Mode
-        AppCompatDelegate.setDefaultNightMode(AppCompatDelegate.MODE_NIGHT_NO)
-    }
-}
+
+
 
 fun getCityNameFromCoordinates(context: Context, latitude: Double, longitude: Double, callback: (String) -> Unit) {
     val geocoder = Geocoder(context)
@@ -197,7 +208,7 @@ fun fetchData(context:Context, city:String){
 }
 
 @Composable
-fun searchBar(viewModel: WeatherViewModel, navController:NavController) {
+fun searchBar(viewModel: WeatherViewModel, navController:NavController,toggleDarkButton:()->Unit,darkMode: Boolean) {
     val weatherResult=viewModel.weatherResult.observeAsState()
 
     var text by remember { mutableStateOf("") }
@@ -212,7 +223,8 @@ fun searchBar(viewModel: WeatherViewModel, navController:NavController) {
 
 
 
-    var darkMode by remember { mutableIntStateOf(0) }
+
+
     LaunchedEffect(Unit) {
         searchHistory = getSearchList(context)
     }
@@ -232,9 +244,13 @@ fun searchBar(viewModel: WeatherViewModel, navController:NavController) {
     }
 
 
+    Column(modifier = Modifier
+        .padding(top=30.dp)
+        .background(MaterialTheme.colorScheme.background)
+        .fillMaxWidth()
 
-    Column(modifier = Modifier.padding(16.dp)) {
-        Spacer(modifier = Modifier.height(40.dp))
+    ) {
+        Spacer(modifier = Modifier.height(20.dp))
         Row(
             verticalAlignment = Alignment.CenterVertically, // Aligns items vertically
             modifier = Modifier.fillMaxWidth(),
@@ -243,24 +259,22 @@ fun searchBar(viewModel: WeatherViewModel, navController:NavController) {
             Text(
                 text = "Weather App",
                 fontSize = 20.sp,
+                color=MaterialTheme.colorScheme.onBackground,
                 modifier = Modifier.padding(start=75.dp),
 )
 
             IconButton(onClick = {
-                darkMode = 1 - darkMode
-                funcDarkMode(darkMode)
+                toggleDarkButton()
             },
                 modifier = Modifier.padding(start=70.dp)) {
                 Image(
-                    painter = painterResource(if (darkMode == 1) R.drawable.dark_mode else R.drawable.light_mode),
-                    contentDescription = if (darkMode == 1) "Dark Mode" else "Light Mode",
-                    modifier = Modifier.size(24.dp), // Ensures proper icon size
+                    painter = painterResource(if (darkMode) R.drawable.dark_mode else R.drawable.light_mode),
+                    contentDescription = if (darkMode) "Dark Mode" else "Light Mode",
+                    modifier = Modifier.size(if (darkMode) 40.dp else 24.dp),
                     contentScale = ContentScale.Fit
                 )
             }
         }
-
-
 
 
         Spacer(modifier = Modifier.height(10.dp))
@@ -268,14 +282,14 @@ fun searchBar(viewModel: WeatherViewModel, navController:NavController) {
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .background(Color(0xFFDCD0FF), shape = RoundedCornerShape(24.dp))
+                    .background(MaterialTheme.colorScheme.tertiary, shape = RoundedCornerShape(24.dp))
                     .padding(horizontal = 8.dp, vertical = 4.dp),
                 verticalAlignment = Alignment.CenterVertically
             ) {
                 Icon(
                     imageVector = Icons.Default.Menu,
                     contentDescription = "MenuICON",
-                    tint = Color.Gray,
+                    tint = MaterialTheme.colorScheme.onSurfaceVariant,
                     modifier = Modifier
                         .padding(8.dp)
                         .clickable { showHistory = !showHistory }
@@ -285,10 +299,10 @@ fun searchBar(viewModel: WeatherViewModel, navController:NavController) {
                     value = text,
                     onValueChange = { text = it },
                     placeholder = {
-                        Text("Enter City", color = Color.Gray, fontSize = 18.sp)
+                        Text("Enter City", fontSize = 18.sp)
                     },
                     textStyle = TextStyle(
-                        color = Color.Black,
+                        color = MaterialTheme.colorScheme.inversePrimary,
                         fontSize = 18.sp
                     ),
                     modifier = Modifier
@@ -319,6 +333,8 @@ fun searchBar(viewModel: WeatherViewModel, navController:NavController) {
                     singleLine = true,
                     shape = RoundedCornerShape(12.dp),
                 )
+
+
                 Icon(
                     imageVector = Icons.Default.LocationOn,
                     contentDescription = "Location",
@@ -394,19 +410,28 @@ fun searchBar(viewModel: WeatherViewModel, navController:NavController) {
                 )
             }
             NetworkResponse.Loading -> {
-                CircularProgressIndicator()
+                Box(
+                    modifier = Modifier
+                        .fillMaxSize(),
+                    contentAlignment = Alignment.Center
+                ) {
+                    CircularProgressIndicator()
+                }
+
             }
             is NetworkResponse.Success -> {
-                weatherDetail(res.data)
+                weatherDetail(res.data,darkMode)
             }
             null -> {}
         }
+        }
 
-    }
+
 
 }
 @Composable
-fun weatherDetail(data : WeatherModel) {
+fun weatherDetail(data : WeatherModel,darkMode: Boolean) {
+
     Column(
         modifier = Modifier
             .fillMaxWidth()
@@ -419,14 +444,20 @@ fun weatherDetail(data : WeatherModel) {
             horizontalArrangement = Arrangement.Start,
             verticalAlignment = Alignment.Bottom
         ) {
+            val iconPainter = if (!darkMode) {
+                painterResource(id=R.drawable.light_mode_location)
+            } else {
+                painterResource(id = R.drawable.dark_mode_location)
+            }
             Icon(
-                imageVector = Icons.Default.LocationOn,
+                painter = iconPainter,
                 contentDescription = "Location icon",
+                tint = if(!darkMode) Color.Red else Color.White ,
                 modifier = Modifier.size(40.dp)
             )
-            Text(text = data.location.name, fontSize = 18.sp)
+            Text(text = data.location.name, fontSize = 18.sp,color=MaterialTheme.colorScheme.inversePrimary)
             Spacer(modifier = Modifier.width(8.dp))
-            Text(text = data.location.country, fontSize = 15.sp, color = Color.Gray)
+            Text(text = data.location.country, fontSize = 15.sp,color=MaterialTheme.colorScheme.inversePrimary)
         }
 
         Spacer(modifier = Modifier.height(14.dp))
@@ -434,19 +465,20 @@ fun weatherDetail(data : WeatherModel) {
             text = " ${data.current.temp_c} ° c",
             fontSize = 56.sp,
             fontWeight = FontWeight.Bold,
-            textAlign = TextAlign.Center
+            textAlign = TextAlign.Center,
+            color=MaterialTheme.colorScheme.inversePrimary
         )
 
         AsyncImage(
             modifier = Modifier.size(160.dp),
-            model = "https:${data.current.condition.icon}".replace("64x64","128x128"),
+            model = "https:${data.current.condition.icon}".replace("64x64", "128x128"),
             contentDescription = "Condition icon"
         )
         Text(
             text = data.current.condition.text,
             fontSize = 16.sp,
             textAlign = TextAlign.Center,
-            color = Color.Gray
+            color = MaterialTheme.colorScheme.inversePrimary
         )
         Spacer(modifier = Modifier.height(16.dp))
         Card {
@@ -457,29 +489,27 @@ fun weatherDetail(data : WeatherModel) {
                     modifier = Modifier.fillMaxWidth(),
                     horizontalArrangement = Arrangement.SpaceAround
                 ) {
-                    WeatherKeyVal("Humidity",data.current.humidity)
-                    WeatherKeyVal("Wind Speed",data.current.wind_kph+" km/h")
+                    WeatherKeyVal("Humidity", data.current.humidity)
+                    WeatherKeyVal("Wind Speed", data.current.wind_kph + " km/h")
                 }
                 Row(
                     modifier = Modifier.fillMaxWidth(),
                     horizontalArrangement = Arrangement.SpaceAround
                 ) {
-                    WeatherKeyVal("UV",data.current.uv)
-                    WeatherKeyVal("Participation",data.current.precip_mm+" mm")
+                    WeatherKeyVal("UV", data.current.uv)
+                    WeatherKeyVal("Participation", data.current.precip_mm + " mm")
                 }
                 Row(
                     modifier = Modifier.fillMaxWidth(),
                     horizontalArrangement = Arrangement.SpaceAround
                 ) {
-                    WeatherKeyVal("Local Time",data.location.localtime.split(" ")[1])
-                    WeatherKeyVal("Local Date",data.location.localtime.split(" ")[0])
+                    WeatherKeyVal("Local Time", data.location.localtime.split(" ")[1])
+                    WeatherKeyVal("Local Date", data.location.localtime.split(" ")[0])
                 }
             }
         }
 
-
-
-    }
+        }
 
 }
 
