@@ -5,9 +5,7 @@ package com.example.weatherapp
 import android.annotation.SuppressLint
 import android.content.Context
 import android.content.pm.PackageManager
-import android.graphics.drawable.Icon
 import android.os.Bundle
-import android.text.Layout
 import android.widget.Toast
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.rememberLauncherForActivityResult
@@ -34,19 +32,13 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.LocationOn
 import androidx.compose.material.icons.filled.Menu
 import androidx.compose.material.icons.filled.Search
-import androidx.compose.material3.Button
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
-import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
-import androidx.compose.material3.TextField
-import androidx.compose.material3.TextFieldColors
 import androidx.compose.material3.TextFieldDefaults
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.key
-import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
@@ -59,47 +51,50 @@ import androidx.compose.ui.platform.LocalSoftwareKeyboardController
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.input.KeyboardType
-import androidx.compose.ui.tooling.preview.Preview
 import com.example.weatherapp.ui.theme.WeatherAppTheme
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import androidx.core.location.LocationManagerCompat.getCurrentLocation
 import com.google.android.gms.location.LocationServices
 import android.Manifest
-import android.content.res.Resources.Theme
+import android.app.Activity
+import android.content.Intent
 import android.location.Geocoder
 import android.location.Location
-import android.text.BoringLayout
-import android.widget.ToggleButton
-import androidx.appcompat.app.AppCompatDelegate
-import androidx.compose.foundation.isSystemInDarkTheme
+import android.os.Build
+import android.speech.RecognizerIntent
+import android.speech.tts.TextToSpeech
+import android.speech.tts.UtteranceProgressListener
+import android.util.Log
+import androidx.compose.foundation.layout.WindowInsets
+import androidx.compose.foundation.layout.asPaddingValues
+import androidx.compose.foundation.layout.systemBars
 import androidx.compose.foundation.layout.wrapContentWidth
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
+import androidx.compose.material3.Button
 import androidx.compose.material3.Card
+import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.Surface
-import androidx.compose.material3.darkColorScheme
-import androidx.compose.material3.lightColorScheme
+import androidx.compose.material3.OutlinedTextField
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.livedata.observeAsState
-import androidx.compose.ui.graphics.vector.rememberVectorPainter
 import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.text.intl.Locale
 import androidx.compose.ui.text.style.TextAlign
 import androidx.core.app.ActivityCompat
 import androidx.lifecycle.ViewModelProvider
 import androidx.navigation.NavController
-import androidx.navigation.NavHost
 import androidx.navigation.compose.rememberNavController
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import coil.compose.AsyncImage
+import com.example.weatherapp.API.Current
 
 import com.example.weatherapp.API.NetworkResponse
 import com.example.weatherapp.API.WeatherModel
-
-
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.time.delay
+import java.util.Locale
 
 
 class MainActivity : ComponentActivity() {
@@ -123,6 +118,7 @@ class MainActivity : ComponentActivity() {
 }
 
 
+@SuppressLint("SuspiciousIndentation")
 @Composable
 fun WeatherApp(weatherViewModel: WeatherViewModel,darkMode: Boolean,toggleDarkButton:()->Unit) {
     val navController = rememberNavController()
@@ -140,7 +136,8 @@ fun WeatherApp(weatherViewModel: WeatherViewModel,darkMode: Boolean,toggleDarkBu
 
 
 
-fun saveSearchCity(context:Context,city_name:String){
+@SuppressLint("NewApi")
+fun saveSearchCity(context:Context, city_name:String){
     var savesearchpref=context.getSharedPreferences("Search_City_History",Context.MODE_PRIVATE)
     val history=savesearchpref.getStringSet("cities", mutableSetOf())?.toMutableSet() ?: mutableSetOf()
     history.add(city_name)
@@ -207,6 +204,9 @@ fun fetchData(context:Context, city:String){
     }
 }
 
+
+
+
 @Composable
 fun searchBar(viewModel: WeatherViewModel, navController:NavController,toggleDarkButton:()->Unit,darkMode: Boolean) {
     val weatherResult=viewModel.weatherResult.observeAsState()
@@ -214,6 +214,9 @@ fun searchBar(viewModel: WeatherViewModel, navController:NavController,toggleDar
     var text by remember { mutableStateOf("") }
 
     val keyboardController = LocalSoftwareKeyboardController.current
+
+
+
 
     var showHistory by remember { mutableStateOf(false) }
 
@@ -227,6 +230,23 @@ fun searchBar(viewModel: WeatherViewModel, navController:NavController,toggleDar
 
     LaunchedEffect(Unit) {
         searchHistory = getSearchList(context)
+    }
+
+    val voiceLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.StartActivityForResult()
+    ) { result ->
+        if (result.resultCode == Activity.RESULT_OK) {
+            val spokenText = result.data
+                ?.getStringArrayListExtra(RecognizerIntent.EXTRA_RESULTS)
+                ?.get(0)
+            if (!spokenText.isNullOrEmpty()) {
+                text = spokenText
+                keyboardController?.hide()
+                fetchData(context, spokenText)
+                searchHistory = getSearchList(context)
+                viewModel.getData(spokenText)
+            }
+        }
     }
 
 
@@ -245,9 +265,11 @@ fun searchBar(viewModel: WeatherViewModel, navController:NavController,toggleDar
 
 
     Column(modifier = Modifier
-        .padding(top=30.dp)
-        .background(MaterialTheme.colorScheme.background)
-        .fillMaxWidth()
+
+                .fillMaxSize()
+                .padding(WindowInsets.systemBars.asPaddingValues())
+                .background(MaterialTheme.colorScheme.background)// Add padding for system bars
+
 
     ) {
         Spacer(modifier = Modifier.height(20.dp))
@@ -295,7 +317,7 @@ fun searchBar(viewModel: WeatherViewModel, navController:NavController,toggleDar
                         .clickable { showHistory = !showHistory }
                 )
 
-                TextField(
+                OutlinedTextField(
                     value = text,
                     onValueChange = { text = it },
                     placeholder = {
@@ -333,7 +355,25 @@ fun searchBar(viewModel: WeatherViewModel, navController:NavController,toggleDar
                     singleLine = true,
                     shape = RoundedCornerShape(12.dp),
                 )
-
+                Icon(
+                    painter = painterResource(R.drawable.mic_24px),
+                    contentDescription = "Voice Search",
+                    tint = Color.Gray,
+                    modifier = Modifier
+                        .padding(8.dp)
+                        .clickable {
+                            val intent = Intent(RecognizerIntent.ACTION_RECOGNIZE_SPEECH).apply {
+                                putExtra(RecognizerIntent.EXTRA_LANGUAGE_MODEL, RecognizerIntent.LANGUAGE_MODEL_FREE_FORM)
+                                putExtra(RecognizerIntent.EXTRA_LANGUAGE, java.util.Locale.getDefault())
+                                putExtra(RecognizerIntent.EXTRA_PROMPT, "Speak a city name")
+                            }
+                            try {
+                                voiceLauncher.launch(intent)
+                            } catch (e: Exception) {
+                                Toast.makeText(context, "Voice search not supported on this device", Toast.LENGTH_SHORT).show()
+                            }
+                        }
+                )
 
                 Icon(
                     imageVector = Icons.Default.LocationOn,
@@ -429,8 +469,72 @@ fun searchBar(viewModel: WeatherViewModel, navController:NavController,toggleDar
 
 
 }
+
 @Composable
-fun weatherDetail(data : WeatherModel,darkMode: Boolean) {
+fun weatherDetail(data: WeatherModel, darkMode: Boolean) {
+    val context = LocalContext.current
+    var tts by remember { mutableStateOf<TextToSpeech?>(null) }
+    var isTtsInitialized by remember { mutableStateOf(false) }
+
+    LaunchedEffect(Unit) {
+        tts = TextToSpeech(context) { status ->
+            if (status == TextToSpeech.SUCCESS) {
+                tts?.language = Locale.US
+                isTtsInitialized = true
+            }
+        }
+    }
+
+    DisposableEffect(Unit) {
+        onDispose {
+            tts?.stop()
+            tts?.shutdown()
+        }
+    }
+    val compassMap = mapOf(
+        "N" to "North",
+        "NNE" to "North-Northeast",
+        "NE" to "Northeast",
+        "ENE" to "East-Northeast",
+        "E" to "East",
+        "ESE" to "East-Southeast",
+        "SE" to "Southeast",
+        "SSE" to "South-Southeast",
+        "S" to "South",
+        "SSW" to "South-Southwest",
+        "SW" to "Southwest",
+        "WSW" to "West-Southwest",
+        "W" to "West",
+        "WNW" to "West-Northwest",
+        "NW" to "Northwest",
+        "NNW" to "North-Northwest"
+    )
+
+
+    val speechText = """
+    Weather in ${data.location.name}, ${data.location.country}.
+    Current temperature is ${data.current.temp_c}°C.
+    Condition is ${data.current.condition.text}.
+    Humidity is ${data.current.humidity}%.
+    Wind speed is ${data.current.wind_kph} km/h.
+    Wind direction is ${compassMap[data.current.wind_dir]} and Wind degree(${data.current.wind_degree}°).
+    Pressure is ${data.current.pressure_mb} mb.
+    Gust speed is ${data.current.gust_kph} km/h.
+    Cloud cover is ${data.current.cloud}%.
+    Visibility is ${data.current.vis_km} km.
+    UV Index is ${data.current.uv}.
+    Precipitation is ${data.current.precip_mm} mm.
+    Last updated at ${data.current.last_updated}.
+    Is it daytime? ${if (data.current.is_day == 1) "Yes" else "No"}.
+    Local Time is ${data.location.localtime.split(" ")[1]} and Local Date is ${data.location.localtime.split(" ")[0]}.
+""".trimIndent()
+
+    // Speak only once after initialization
+    LaunchedEffect(isTtsInitialized) {
+        if (isTtsInitialized) {
+            tts?.speak(speechText, TextToSpeech.QUEUE_FLUSH, null, "weather_speech")
+        }
+    }
 
     Column(
         modifier = Modifier
@@ -439,51 +543,75 @@ fun weatherDetail(data : WeatherModel,darkMode: Boolean) {
             .verticalScroll(rememberScrollState()),
         horizontalAlignment = Alignment.CenterHorizontally
     ) {
+        // Location Row
         Row(
             modifier = Modifier.fillMaxWidth(),
             horizontalArrangement = Arrangement.Start,
             verticalAlignment = Alignment.Bottom
         ) {
             val iconPainter = if (!darkMode) {
-                painterResource(id=R.drawable.light_mode_location)
+                painterResource(id = R.drawable.light_mode_location)
             } else {
                 painterResource(id = R.drawable.dark_mode_location)
             }
             Icon(
                 painter = iconPainter,
                 contentDescription = "Location icon",
-                tint = if(!darkMode) Color.Red else Color.White ,
+                tint = if (!darkMode) Color.Red else Color.White,
                 modifier = Modifier.size(40.dp)
             )
-            Text(text = data.location.name, fontSize = 18.sp,color=MaterialTheme.colorScheme.inversePrimary)
+            Text(
+                text = data.location.name,
+                fontSize = 18.sp,
+                color = MaterialTheme.colorScheme.inversePrimary
+            )
             Spacer(modifier = Modifier.width(8.dp))
-            Text(text = data.location.country, fontSize = 15.sp,color=MaterialTheme.colorScheme.inversePrimary)
+            Text(
+                text = data.location.country,
+                fontSize = 15.sp,
+                color = MaterialTheme.colorScheme.inversePrimary
+            )
         }
 
         Spacer(modifier = Modifier.height(14.dp))
+
+        // Temperature
         Text(
             text = " ${data.current.temp_c} ° c",
             fontSize = 56.sp,
             fontWeight = FontWeight.Bold,
             textAlign = TextAlign.Center,
-            color=MaterialTheme.colorScheme.inversePrimary
+            color = MaterialTheme.colorScheme.inversePrimary
         )
 
+        // Weather Icon
         AsyncImage(
             modifier = Modifier.size(160.dp),
             model = "https:${data.current.condition.icon}".replace("64x64", "128x128"),
             contentDescription = "Condition icon"
         )
+
+        // Condition Text
         Text(
             text = data.current.condition.text,
             fontSize = 16.sp,
             textAlign = TextAlign.Center,
             color = MaterialTheme.colorScheme.inversePrimary
         )
+
         Spacer(modifier = Modifier.height(16.dp))
-        Card {
+
+        // First Card (Basic Info)
+        Card(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 16.dp),
+            elevation = CardDefaults.cardElevation(defaultElevation = 4.dp)
+        ) {
             Column(
-                modifier = Modifier.fillMaxWidth()
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(16.dp)
             ) {
                 Row(
                     modifier = Modifier.fillMaxWidth(),
@@ -509,8 +637,25 @@ fun weatherDetail(data : WeatherModel,darkMode: Boolean) {
             }
         }
 
-        }
 
+
+        Spacer(modifier = Modifier.height(8.dp))
+
+        Spacer(modifier = Modifier.height(16.dp))
+
+        // Detailed Weather Card
+        WeatherDetailsCard(
+            isDay = data.current.is_day,
+            windDegree = data.current.wind_degree,
+            windDir = data.current.wind_dir,
+            pressureMb = data.current.pressure_mb,
+            gustKph = data.current.gust_kph,
+            humidity = data.current.humidity,
+            cloud = data.current.cloud,
+            visibilityKm = data.current.vis_km,
+            lastUpdated = data.current.last_updated
+        )
+    }
 }
 
 @Composable
@@ -524,8 +669,97 @@ fun WeatherKeyVal(key : String, value : String) {
     }
 }
 
+@Composable
+fun WeatherDetailsCard(
+    isDay: Int,
+    windDegree: String,
+    windDir: String,
+    pressureMb: String,
+    gustKph: String,
+    humidity: String,
+    cloud: String,
+    visibilityKm: String,
+    lastUpdated: String
+) {
+    Card(
+        modifier = Modifier
+            .padding(16.dp)
+            .fillMaxWidth(),
+        elevation = CardDefaults.cardElevation(defaultElevation = 4.dp),
+        colors = CardDefaults.cardColors(
+            containerColor = MaterialTheme.colorScheme.surfaceVariant,
+            contentColor = MaterialTheme.colorScheme.onSurfaceVariant
+        )
+    ) {
+        Column(
+            modifier = Modifier
+                .padding(16.dp)
+                .fillMaxWidth()
+        ) {
+            Text(
+                text = "Detailed Weather Information",
+                style = MaterialTheme.typography.titleMedium,
+                modifier = Modifier.padding(bottom = 8.dp)
+            )
 
 
 
+            // First row of details
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(vertical = 8.dp),
+                horizontalArrangement = Arrangement.SpaceBetween
+            ) {
+                DetailItem("Day/Night", if (isDay == 1) "Day" else "Night")
+                DetailItem("Wind Degree", "$windDegree°")
+                DetailItem("Wind Direction", windDir)
+            }
+
+            // Second row of details
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(vertical = 8.dp),
+                horizontalArrangement = Arrangement.SpaceBetween
+            ) {
+                DetailItem("Pressure", "$pressureMb mb")
+                DetailItem("Gust Speed", "$gustKph kph")
+                DetailItem("Humidity", "$humidity%")
+            }
+
+            // Third row of details
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(vertical = 8.dp),
+                horizontalArrangement = Arrangement.SpaceBetween
+            ) {
+                DetailItem("Cloud Cover", "$cloud%")
+                DetailItem("Visibility", "$visibilityKm km")
+                DetailItem("Last Updated", lastUpdated)
+            }
+        }
+    }
+}
+
+@Composable
+fun DetailItem(label: String, value: String) {
+    Column(
+        horizontalAlignment = Alignment.CenterHorizontally,
+        modifier = Modifier.padding(4.dp)
+    ) {
+        Text(
+            text = label,
+            style = MaterialTheme.typography.labelSmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f)
+        )
+        Text(
+            text = value,
+            style = MaterialTheme.typography.bodyMedium,
+            fontWeight = FontWeight.Bold
+        )
+    }
+}
 
 

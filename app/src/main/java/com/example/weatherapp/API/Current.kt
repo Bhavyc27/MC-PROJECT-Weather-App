@@ -12,7 +12,7 @@ data class Current(
     val heatindex_c: String,
     val heatindex_f: String,
     val humidity: String,
-    val is_day: String,
+    val is_day: Int,
     val last_updated: String,
     val last_updated_epoch: String,
     val precip_in: String,
