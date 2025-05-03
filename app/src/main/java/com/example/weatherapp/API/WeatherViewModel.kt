@@ -1,15 +1,9 @@
-package com.example.weatherapp
+package com.example.weatherapp.API
 
-import android.util.Log
 import androidx.lifecycle.LiveData
 import androidx.lifecycle.MutableLiveData
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
-import androidx.lifecycle.viewmodel.compose.viewModel
-import com.example.weatherapp.API.Constant
-import com.example.weatherapp.API.NetworkResponse
-import com.example.weatherapp.API.RetrofitInstance
-import com.example.weatherapp.API.WeatherModel
 import kotlinx.coroutines.launch
 
 class WeatherViewModel : ViewModel() {

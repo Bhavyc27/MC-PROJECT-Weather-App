@@ -10,4 +10,7 @@ interface WeatherAPI {
         @Query("key") apiKey:String,
         @Query("q") city:String
     ): Response<WeatherModel>
+
+
+
 }
