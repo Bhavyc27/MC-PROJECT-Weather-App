@@ -34,21 +34,33 @@ fun WeatherApp(weatherViewModel: WeatherViewModel, darkMode: Boolean, toggleDark
 
 
 
+
 @SuppressLint("NewApi")
-fun saveSearchCity(context: Context, city_name:String){
-    var savesearchpref=context.getSharedPreferences("Search_City_History", Context.MODE_PRIVATE)
-    val history=savesearchpref.getStringSet("cities", mutableSetOf())?.toMutableSet() ?: mutableSetOf()
-    history.add(city_name)
-    savesearchpref.edit().putStringSet("cities", history).apply()
+fun saveSearchCity(context: Context, city_name: String) {
+    val savesearchpref = context.getSharedPreferences("Search_City_History", Context.MODE_PRIVATE)
+    val currentHistory = savesearchpref.getString("cities_history", "") ?: ""
 
+    // Split existing history and remove duplicates
+    val historyList = currentHistory.split("|").filter { it.isNotEmpty() }.toMutableList()
+
+    // Remove if already exists to avoid duplicates
+    historyList.remove(city_name)
+
+    // Add to beginning (most recent first)
+    historyList.add(0, city_name)
+
+    // Limit to last 10 searches
+
+
+    // Join with delimiter and save
+    savesearchpref.edit().putString("cities_history", historyList.joinToString("|")).apply()
 }
-fun getSearchList(context: Context):List<String>{
-    val savesearchpref=context.getSharedPreferences("Search_City_History", Context.MODE_PRIVATE)
-    return savesearchpref.getStringSet("cities", mutableSetOf())?.toList()?: emptyList()
 
+fun getSearchList(context: Context): List<String> {
+    val savesearchpref = context.getSharedPreferences("Search_City_History", Context.MODE_PRIVATE)
+    val historyString = savesearchpref.getString("cities_history", "") ?: ""
+    return historyString.split("|").filter { it.isNotEmpty() }
 }
-
-
 
 
 fun getCityNameFromCoordinates(context: Context, latitude: Double, longitude: Double, callback: (String) -> Unit) {
