@@ -20,13 +20,16 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.asPaddingValues
+import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.systemBars
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.wrapContentHeight
 import androidx.compose.foundation.layout.wrapContentWidth
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -39,6 +42,8 @@ import androidx.compose.material.icons.filled.Search
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.Divider
+import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
@@ -46,6 +51,7 @@ import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextFieldDefaults
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.livedata.observeAsState
@@ -107,18 +113,19 @@ fun searchBar(viewModel: WeatherViewModel, navController: NavController, toggleD
 
     var autoRefreshEnabled by remember { mutableStateOf(false) }
 
-    // Function to perform search
+    // Optimized performSearch function
     fun performSearch() {
         if (text.isNotEmpty()) {
             keyboardController?.hide()
-            fetchData(context, text)
-            searchHistory = getSearchList(context)
-            viewModel.getData(text)
+            viewModel.getData(text).also {
+                fetchData(context, text)
+                searchHistory = getSearchList(context)
+            }
         }
     }
 
     // Auto-refresh effect
-    LaunchedEffect(text, autoRefreshEnabled) {
+    LaunchedEffect(autoRefreshEnabled) {
         if (text.isNotEmpty() && autoRefreshEnabled) {
             while (true) {
                 performSearch()
@@ -127,7 +134,12 @@ fun searchBar(viewModel: WeatherViewModel, navController: NavController, toggleD
         }
     }
 
-
+    // Optimize TTS usage
+    DisposableEffect(tts) {
+        onDispose {
+            tts.stop()
+        }
+    }
 
 
     LaunchedEffect(Unit) {
@@ -316,25 +328,60 @@ fun searchBar(viewModel: WeatherViewModel, navController: NavController, toggleD
 
             }
         }
-        if (showHistory && searchHistory.size>=1 ) {
-            Column(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .background(Color.LightGray, shape = RoundedCornerShape(8.dp))
-                    .padding(8.dp)
-            ) {
-                searchHistory.forEach { city ->
-                    Text(
-                        text = city,
-                        fontSize = 16.sp,
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .padding(4.dp)
-                            .clickable {
-                                text = city
-                                showHistory = false
+        if (showHistory && searchHistory.isNotEmpty()) {
+            val itemHeight = 48.dp // Fixed height for each item
+            val dividerHeight = 1.dp // Height for each divider
+            val verticalPadding = 8.dp // Padding at top/bottom
+
+            // Calculate total height based on number of items
+            val totalHeight =
+                (itemHeight + dividerHeight) * searchHistory.size + verticalPadding * 2
+
+            if (showHistory && searchHistory.isNotEmpty()) {
+                val itemHeight = 48.dp // Fixed height for each item
+                val dividerHeight = 1.dp // Height for each divider
+                val verticalPadding = 8.dp // Padding at top/bottom
+
+                // Calculate total height based on number of items
+                val totalHeight =
+                    (itemHeight + dividerHeight) * searchHistory.size + verticalPadding * 2
+
+                Card(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(totalHeight) // Exact height based on content
+                        .padding(horizontal = 16.dp),
+                    shape = MaterialTheme.shapes.medium,
+                    elevation = CardDefaults.cardElevation(4.dp)
+                ) {
+                    Column(
+                        modifier = Modifier.verticalScroll(rememberScrollState())
+                    ) {
+                        searchHistory.forEachIndexed { index, city ->
+                            Text(
+                                text = city,
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .height(itemHeight)
+                                    .clickable {
+                                        text = city
+                                        showHistory = false
+                                        performSearch()
+                                    }
+                                    .padding(horizontal = 16.dp)
+                                    .wrapContentHeight(Alignment.CenterVertically),
+                                style = MaterialTheme.typography.bodyLarge
+                            )
+                            // Don't add divider after last item
+                            if (index < searchHistory.size - 1) {
+                                Divider(
+                                    modifier = Modifier.padding(horizontal = 16.dp),
+                                    thickness = 0.5.dp,
+                                    color = MaterialTheme.colorScheme.outlineVariant
+                                )
                             }
-                    )
+                        }
+                    }
                 }
             }
         }
@@ -342,8 +389,14 @@ fun searchBar(viewModel: WeatherViewModel, navController: NavController, toggleD
         when(val res=weatherResult.value)
         {
             is NetworkResponse.Error -> {
+                LaunchedEffect(res) {
+
+                    tts.speak(res.message, TextToSpeech.QUEUE_FLUSH, null, null)
+                }
+
                 Text(
                     text = res.message,
+                    color = MaterialTheme.colorScheme.inversePrimary,
                     modifier = Modifier
                         .fillMaxWidth()
                         .wrapContentWidth(Alignment.CenterHorizontally)
